@@ -6,8 +6,8 @@ services:
     restart: always
     environment:
       POSTGRES_DB: ads-db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 03XH*jfN8y'HcX+~
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/initdb/init.sql:/docker-entrypoint-initdb.d
@@ -18,8 +18,8 @@ services:
     build: ./server
     restart: always
     environment:
-      DB_USER: postgres
-      DB_PASSWORD: 03XH*jfN8y'HcX+~
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
       DB_HOST: db       # hostname of postgres container
       DB_NAME: ads-db
       DB_PORT: 5432
