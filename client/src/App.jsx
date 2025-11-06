@@ -65,7 +65,7 @@ function App() {
 const sendData = async() => {
   setIsSubmitting(true);
   try{ 
-  await axios.post("http://157.230.210.174:8080/api", {
+  await axios.post("http://localhost:8080/api", {
     angler: {
       email_addr: email_addr,
       name_first: name_first,
