@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const corsOptions = {
-    origin: ["http://localhost:8080"]
+    origin: ["http://localhost"]
 };
 require('@dotenvx/dotenvx').config()
 const Pool = require('pg').Pool;
