@@ -82,7 +82,27 @@ app.get("/api/angler", async (req, res) => {
         console.error(err);
         res.status(500).json({error: 'Error retrieving data'});
     }
+})
 
+app.get("/api/angler/email/:email", async (req, res) =>{
+    const email = req.params.email;
+    try{
+        const result = await pool.query(
+            'SELECT * FROM angler WHERE email_addr = $1',
+            [email]
+        )
+
+        if (result.rows.length > 0){
+            res.status(200).json(result.rows[0]);
+        }
+        else{
+            res.status(404).json({message: 'Angler not found'});
+        }
+    }
+    catch (err){
+        console.error(err);
+        res.status(500).json({error: 'Error checking username'});
+    }
 })
 
 
