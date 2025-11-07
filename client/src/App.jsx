@@ -122,11 +122,30 @@ const validate = () =>{
   sendData();
 };
 
+const checkExistingAngler = async(email) =>{
+  if (!validateEmail(email)){
+    return;
+  }
+  try{
+    const response = await axios.get(`http://localhost:8080/api/angler/email/${email}`);
+    setName_first(response.data.name_first);
+    setName_last(response.data.name_last);
+  }
+  catch(err){
+    if (err.response && err.response.status == 404) {
+      console.log("New angler")
+    }
+    else{
+      console.error("Error checking angler", err)
+    }
+  }
+}
+
 return (
   <div>
     <div className="form-row">
       <label>
-        Email address: <input type="text" id="email-addr" value={email_addr} onChange={e => setEmail(e.target.value)}/>
+        Email address: <input type="text" id="email-addr" value={email_addr} onChange={e => setEmail(e.target.value)} onBlur={e => checkExistingAngler(e.target.value)}/>
       </label>
       <label>
         First name: <input type="text" id="first-name" value={name_first} onChange={e =>setName_first(e.target.value)}/>
