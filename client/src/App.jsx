@@ -31,6 +31,8 @@ function App() {
   const [fishList, setFishList] = useState([
     {species: "Lake Trout", length: 0, kept: false, released: false}
   ]);
+  const [photos, setPhotos] = useState([]);
+  const [photoPreviews, setPhotoPreviews] = useState([]);
   const addFish = () => {
     setFishList([...fishList, { species: "Lake Trout", length: 0, kept: false, released: false}]);
   };
@@ -43,6 +45,23 @@ function App() {
     const updatedFish = [...fishList];
     updatedFish[index][field] = value;
     setFishList(updatedFish);
+  };
+  const handlePhotoChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length > 10) {
+      alert("Maximum 10 photos allowed");
+      return;
+    }
+    setPhotos(files);
+    const previews = files.map(file => URL.createObjectURL(file));
+    setPhotoPreviews(previews);
+  };
+  const removePhoto = (index) => {
+    const newPhotos = photos.filter((_, i) => i !== index);
+    const newPreviews = photoPreviews.filter((_, i) => i !== index);
+    URL.revokeObjectURL(photoPreviews[index]);
+    setPhotos(newPhotos);
+    setPhotoPreviews(newPreviews);
   };
   const [personal_notes, setPersonal_notes] = useState("");
   const validateEmail = (email) => {
@@ -57,57 +76,73 @@ function App() {
       setFishList([]); // Clear the list
     }
   }, [no_fish]);
+  useEffect(() => {
+    return () => {
+      photoPreviews.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, [photoPreviews]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
 
 
-
-const sendData = async() => {
-  setIsSubmitting(true);
-  try{ 
-  await axios.post("http://localhost:8080/api", {
-    angler: {
-      email_addr: email_addr,
-      name_first: name_first,
-      name_last: name_last
-    },
-    trip: {
-      num_anglers: num_anglers,
-      trip_date: trip_date,
-      area_fished: area_fished,
-      bait_type: bait_type,
-      fishing_type: fishing_type,
-      time_fishing: time_fishing,
-      target_trout: target_trout,
-      trout_time: trout_time,
-      target_bass: target_bass,
-      bass_time: bass_time,
-      target_pike: target_pike,
-      pike_time: pike_time,
-      target_yp: target_yp,
-      yp_time: yp_time,
-      target_wp: target_wp,
-      wp_time: wp_time,
-      target_sunfish: target_sunfish,
-      sunfish_time: sunfish_time,
-      target_bullhead: target_bullhead,
-      bullhead_time: bullhead_time,
-      no_fish: no_fish,
-      personal_notes: personal_notes
-    },
-    fish: fishList
-  });
-  setMessage("Submitted Successfully");
-}
-
-catch (err){
-  console.error("Error sending data:", err);
-  setMessage("Error submitting form");
-}
-finally{
-  setIsSubmitting(false);
-}
-};
+  const sendData = async() => {
+    setIsSubmitting(true);
+    try{ 
+      const formData = new FormData();
+      formData.append('data', JSON.stringify({
+        angler: {
+          email_addr: email_addr,
+          name_first: name_first,
+          name_last: name_last
+        },
+        trip: {
+          num_anglers: num_anglers,
+          trip_date: trip_date,
+          area_fished: area_fished,
+          bait_type: bait_type,
+          fishing_type: fishing_type,
+          time_fishing: time_fishing,
+          target_trout: target_trout,
+          trout_time: trout_time,
+          target_bass: target_bass,
+          bass_time: bass_time,
+          target_pike: target_pike,
+          pike_time: pike_time,
+          target_yp: target_yp,
+          yp_time: yp_time,
+          target_wp: target_wp,
+          wp_time: wp_time,
+          target_sunfish: target_sunfish,
+          sunfish_time: sunfish_time,
+          target_bullhead: target_bullhead,
+          bullhead_time: bullhead_time,
+          no_fish: no_fish,
+          personal_notes: personal_notes
+        },
+        fish: fishList
+      }));
+      photos.forEach((photo) => {
+        formData.append('photos', photo);
+      });
+      
+      await axios.post("http://localhost:8080/api", formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      setMessage("Submitted Successfully");
+      setPhotos([]);
+      setPhotoPreviews([]);
+    }
+    catch (err){
+      console.error("Error sending data:", err);
+      setMessage("Error submitting form");
+    }
+    finally{
+      setIsSubmitting(false);
+    }
+  };
 
 const validate = () =>{
   if (!email_addr || !validateEmail(email_addr)){
@@ -326,6 +361,59 @@ return (
       Personal notes (optional)
       <textarea name="Personal Notes" cols="30" rows="10" value={personal_notes} onChange={e => setPersonal_notes(e.target.value)}></textarea>
     </label>
+    <div>
+      <h2>Add photos (Optional)</h2>
+      <input type="file" accept="image/*" multiple onChange={handlePhotoChange} style={{ marginBottom: '10px' }}/>
+      <p style={{ fontSize: '0.9em', color: '#666' }}>
+          Maximum 10 photos, 10MB each (JPEG, PNG, HEIC)
+      </p>
+      {photoPreviews.length > 0 && (
+          <div className="photo-previews" style={{ 
+            display: 'flex', 
+            flexWrap: 'wrap', 
+            gap: '10px',
+            marginTop: '10px' 
+          }}>
+            {photoPreviews.map((preview, index) => (
+              <div key={index} style={{ position: 'relative' }}>
+                <img 
+                  src={preview} 
+                  alt={`Preview ${index + 1}`}
+                  style={{ 
+                    width: '150px', 
+                    height: '150px', 
+                    objectFit: 'cover',
+                    borderRadius: '8px'
+                  }}
+                />
+                <button 
+                  onClick={() => removePhoto(index)}
+                  style={{
+                    position: 'absolute',
+                    top: '5px',
+                    right: '5px',
+                    background: 'red',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '25px',
+                    height: '25px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '18px',
+                    lineHeight: '1',
+                    padding: '0'
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+    </div>
     <button onClick={validate} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit Trip"}</button>
     <p>{message}</p>
   </div>
