@@ -4,6 +4,9 @@ const cors = require('cors');
 const corsOptions = {
     origin: ["http://localhost"]
 };
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 require('@dotenvx/dotenvx').config()
 const Pool = require('pg').Pool;
 
@@ -18,17 +21,46 @@ const pool = new Pool ({
 app.use(cors(corsOptions));
 app.use(express.json());
 
+app.use('/uploads', express.static('uploads'));
 
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const uploadDir = 'uploads/';
+        if (!fs.existsSync(uploadDir)){
+            fs.mkdirSync(uploadDir, { recursive: true});
+        }
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueName = `${Date.now()}-${Math.random().toString(36).substring(7)}${path.extname(file.originalname)}`;
+        cb (null, uniqueName);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {filesize: 10*1024*1024}, //10MB filesize limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpg|jpeg|png|heic/;
+        const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        const mimetype = allowedTypes.test(file.mimetype);
+
+        if (extname && mimetype) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files (jpeg, jpg, png, heic) are allowed'));
+        }
+    }
+});
 
 app.listen(8080, '0.0.0.0', () => {
     console.log("server started on port 8080");
 })
 
-app.post("/api", async (req, res) => {
-    const {angler, trip, fish} = req.body;
+app.post("/api", upload.array('photos', 10), async (req, res) => {
+    const {angler, trip, fish} = JSON.parse(req.body.data);
     const {email_addr, name_first, name_last} = angler;
-    const {num_anglers, trip_date, area_fished, bait_type, fishing_type, time_fishing, target_trout, trout_time, target_bass, bass_time, target_pike, pike_time, target_yp, yp_time, target_wp, wp_time, target_sunfish, sunfish_time, target_bullhead, bullhead_time, no_fish, personal_notes} = req.body.trip;
-    const {species, length, kept, released} = req.body.fish;
+    const {num_anglers, trip_date, area_fished, bait_type, fishing_type, time_fishing, target_trout, trout_time, target_bass, bass_time, target_pike, pike_time, target_yp, yp_time, target_wp, wp_time, target_sunfish, sunfish_time, target_bullhead, bullhead_time, no_fish, personal_notes} = trip;
     const client = await pool.connect();
     let anglerID;
     try{
@@ -58,11 +90,26 @@ app.post("/api", async (req, res) => {
                     [tripID, species, length, kept, released]
                 );
             }
+            if (req.files && req.files.length > 0) {
+                for (const file of req.files) {
+                    await client.query(
+                        "INSERT INTO trip_photos (trip_id, file_path) VALUES ($1, $2)",
+                        [tripID, file.path]
+                    );
+                }
+            }
             await client.query("COMMIT");
-            res.status(201).json({ message: "Submission complete" });
+            res.status(201).json({ message: "Submission complete", photoCount: req.files ? req.files.length : 0});
     }
     catch (err) {
         await client.query("ROLLBACK");
+        if (req.files) {
+            req.files.forEach(file => {
+                fs.unlink(file.path, (unlinkErr) => {
+                    if (unlinkErr) console.error('Error deleting file:', unlinkErr);
+                });
+            });
+        }
         console.error("Error submitting form:", err);
         res.status(500).json({ error: "Submission failed" });
     }
@@ -101,7 +148,7 @@ app.get("/api/angler/email/:email", async (req, res) =>{
     }
     catch (err){
         console.error(err);
-        res.status(500).json({error: 'Error checking username'});
+        res.status(500).json({error: 'Error checking email'});
     }
 })
 
@@ -163,6 +210,20 @@ app.put("/api/trip/:trip_id", async(req, res) => {
         res.status(500).json({error: 'Error updating data'})
     }
 })
+
+app.get("/api/trip/:trip_id/photos", async (req, res) => {
+    const tripId = req.params.trip_id;
+    try {
+        const result = await pool.query(
+            'SELECT * FROM trip_photos WHERE trip_id = $1 ORDER BY uploaded_at DESC',
+            [tripId]
+        );
+        res.status(200).json(result.rows);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Error retrieving photos' });
+    }
+});
 
 app.put("/api/fish/:fish_id", async(req, res) => {
     const id = req.params.fish_id;
